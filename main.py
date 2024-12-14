@@ -226,7 +226,7 @@ def draw_quadrilateral(image, quad, color="red", width=3):
     return image
 
 if __name__ == "__main__":
-    image_path = 'test.jpg'
+    image_path = 'input3.jpg'
     image = Image.open(image_path)
     
     edges = canny_edge_detection(image)
