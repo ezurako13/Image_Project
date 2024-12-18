@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image, ImageOps, ImageDraw, ImageFilter
 import math
+import cv2
 
 def rgb_to_grayscale(image):
     return ImageOps.grayscale(image)
@@ -94,11 +95,19 @@ def hysteresis(image, weak, strong=255):
 
 def canny_edge_detection(image):
     gray_image = rgb_to_grayscale(image)
+    gray_image.save("Gray Image.png")
     blurred_image = gaussian_blur(gray_image)
+    blurred_image.save("Blurred Image.png")
     G, theta = sobel_filters(blurred_image)
     non_max_img = non_maximum_suppression(G, theta)
+    #show non-maximum suppressed image
+    Image.fromarray(np.uint8(non_max_img)).save("Non-Maximum Suppressed Image.png")
     threshold_img, weak, strong = threshold(non_max_img)
+    #show threshold image
+    Image.fromarray(np.uint8(threshold_img)).save("Threshold Image.png")
     img_final = hysteresis(threshold_img, weak, strong)
+    #show final image
+    Image.fromarray(np.uint8(img_final)).save("Final Image.png")
     return img_final
 
 def compute_convex_hull(points):
@@ -229,28 +238,67 @@ if __name__ == "__main__":
     image_path = 'input3.jpg'
     image = Image.open(image_path)
     
-    edges = canny_edge_detection(image)
+    # edges = canny_edge_detection(image)
+
+    # Convert PIL image to OpenCV format
+    image_cv = np.array(image)
+    gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    # Show blurred image
+    Image.fromarray(gray).save("Blurred Image.png")
+    edges_cv = cv2.Canny(gray, 0, 200, apertureSize=3)
+
+    # Show edges
+    Image.fromarray(edges_cv).save("Edges.png")
+
+    # Create a kernel with plus shape
+    kernel = np.array([[0, 1, 0],
+                       [1, 1, 1],
+                       [0, 1, 0]], np.uint8)
+    # Perform morphological operations
+    # kernel = np.ones((3, 3), np.uint8)
+    edges_cv = cv2.dilate(edges_cv, kernel, iterations=2)
+    # edges_cv = cv2.erode(edges_cv, kernel, iterations=2)
+
+    # Show morphed edges
+    Image.fromarray(edges_cv).save("Edges.png")
+
+
+    # Perform Hough Line Transform
+    lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 180, threshold=300, minLineLength=100, maxLineGap=10)
+
+    # Draw lines on the image
+    image_cv = np.array(image_cv)
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    image_cv = Image.fromarray(image_cv)
+    image_cv.save("Hough Lines.png")
+
+    # top_quads = find_largest_quadrilaterals(edges, top_n=10)
     
-    top_quads = find_largest_quadrilaterals(edges, top_n=10)
+    # if top_quads:
+    #     gray_image = rgb_to_grayscale(image)
+    #     gray_array = np.array(gray_image)
+    #     variances = []
+        
+    #     for quad in top_quads:
+    #         var = evaluate_quadrilateral(gray_array, quad)
+    #         variances.append((var, quad))
+        
+    #     variances.sort(key=lambda x: x[0])
+    #     best_quad = variances[0][1]
+        
+    #     result_image = image.convert("RGB")
+    #     result_image = draw_quadrilateral(result_image, best_quad, color="red", width=3)
+    # else:
+    #     print("Yeterli dörtgen bulunamadı.")
+    #     result_image = image.convert("RGB")
     
-    if top_quads:
-        gray_image = rgb_to_grayscale(image)
-        gray_array = np.array(gray_image)
-        variances = []
-        
-        for quad in top_quads:
-            var = evaluate_quadrilateral(gray_array, quad)
-            variances.append((var, quad))
-        
-        variances.sort(key=lambda x: x[0])
-        best_quad = variances[0][1]
-        
-        result_image = image.convert("RGB")
-        result_image = draw_quadrilateral(result_image, best_quad, color="red", width=3)
-    else:
-        print("Yeterli dörtgen bulunamadı.")
-        result_image = image.convert("RGB")
-    
-    output_path = 'output.jpg'
-    result_image.save(output_path)
-    result_image.show()
+    # output_path = 'output.jpg'
+    # result_image.save(output_path)
+    # # result_image.show()
