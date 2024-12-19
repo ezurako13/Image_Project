@@ -233,9 +233,147 @@ def draw_quadrilateral(image, quad, color="red", width=3):
         end = quad_points[(i + 1) % 4]
         draw.line([start, end], fill=color, width=width)
     return image
+def find_colored_region_corners(image_path, lower_color, upper_color):
+    # Görüntüyü yükle
+    image = cv2.imread(image_path)
+    if image is None:
+        print("Hata: Görüntü yüklenemedi.")
+        return []
+    
+    # Görüntüyü HSV formatına çevir
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    
+    # Renk aralığına göre maske oluştur
+    mask = cv2.inRange(hsv, np.array(lower_color), np.array(upper_color))
+    
+    # Maskede konturları bul
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    corners = []
+    for cnt in contours:
+        # Minimum alanı kaplayan dikdörtgeni bul
+        rect = cv2.minAreaRect(cnt)
+        box = cv2.boxPoints(rect)
+        box = np.intp(box)  # Köşe noktalarını tamsayıya çevir
+        
+        corners.append(box)
+    
+    return corners
+def find_blue_contours(image_path, output_image_path):
+    # Load the image
+    image = cv2.imread(image_path)
+
+    # Convert the image to HSV
+    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    # Define the blue color range in HSV
+    lower_blue = np.array([110, 50, 50])
+    upper_blue = np.array([130, 255, 255])
+
+    # Create a mask for the blue color
+    mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
+
+    # Find contours in the mask
+    contours, _ = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Show the contours 
+    Image.fromarray(mask_blue).save("mask_blueddd.png")
+    
+    # Draw contours on the original image with white color
+    cv2.drawContours(image, contours, -1, (255, 255, 255), 2)
+
+    # Create a mask for white pixels
+    white_mask = np.all(image == [255, 255, 255], axis=-1)
+    white_pixels = np.argwhere(white_mask)
+
+    # Save the result
+    cv2.imwrite(output_image_path, image)
+
+    return contours, white_pixels
+
+def flood_fill(image, seed_point, new_color):
+    # Convert PIL image to numpy array
+    image_np = np.array(image)
+
+    if len(image_np.shape) == 3:
+        gray_image = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
+    else:
+        gray_image = image_np
+
+    h, w = gray_image.shape[:2]
+
+    # Check if seed_point is within the image bounds
+    if not (0 <= seed_point[0] < w and 0 <= seed_point[1] < h):
+        raise ValueError("seed_point is out of image bounds")
+
+    # Get the color of the seed point
+    seed_color = gray_image[seed_point[1], seed_point[0]]
+
+    # Create a mask for flood fill
+    mask = np.zeros((h + 2, w + 2), np.uint8)
+
+    # Perform flood fill
+    cv2.floodFill(image_np, mask, seed_point, new_color, (10,), (10,), cv2.FLOODFILL_FIXED_RANGE)
+
+    # Convert numpy array back to PIL image
+    return Image.fromarray(image_np)
+def restore_blue_pixels(original_image_path, flood_filled_image_path, output_image_path):
+    # Load the images
+    flood_filled_image = cv2.imread(flood_filled_image_path)
+    original_image = cv2.imread(original_image_path)
+
+    # Convert the flood filled image to HSV
+    hsv_flood_filled = cv2.cvtColor(flood_filled_image, cv2.COLOR_BGR2HSV)
+
+    # Define the blue color range in HSV
+    lower_blue = np.array([110, 50, 50])
+    upper_blue = np.array([130, 255, 255])
+
+    # Create a mask for the blue color
+    mask_blue = cv2.inRange(hsv_flood_filled, lower_blue, upper_blue)
+
+    # Extract the blue regions from the original image
+    blue_regions = cv2.bitwise_and(original_image, original_image, mask=mask_blue)
+
+    # Create an inverse mask to remove the blue regions from the flood filled image
+    mask_blue_inv = cv2.bitwise_not(mask_blue)
+    flood_filled_no_blue = cv2.bitwise_and(flood_filled_image, flood_filled_image, mask=mask_blue_inv)
+
+    # Combine the images to place the blue regions back into the original image
+    result_image = cv2.add(flood_filled_no_blue, blue_regions)
+
+    # Save the result
+    cv2.imwrite(output_image_path, result_image)
+
+def draw_boundaries_on_original(original_image_path, coordinates, output_image_path):
+    # Load the original image
+    original_image = cv2.imread(original_image_path)
+
+    if original_image is None:
+        raise FileNotFoundError(f"Cannot open {original_image_path}")
+
+    # Iterate over the coordinates and set the pixels to white
+    for coord in coordinates:
+        y, x = coord  # Unpack only y and x
+        original_image[y, x] = [255, 255, 255]
+
+    # Save the result
+    cv2.imwrite(output_image_path, original_image)
+
+def create_black_image_with_white_pixels(image_name, width, height, coordinates):
+    # Create a black image
+    image = np.zeros((height, width, 3), np.uint8)
+
+    # Iterate over the coordinates and set the pixels to white
+    for coord in coordinates:
+        y, x = coord  # Unpack only y and x
+        image[y, x] = [255, 255, 255]
+
+    # Save the result
+    cv2.imwrite(image_name, image)
 
 if __name__ == "__main__":
-    image_path = 'input3.jpg'
+    image_path = 'input2.jpg'
     image = Image.open(image_path)
     
     # edges = canny_edge_detection(image)
@@ -244,9 +382,6 @@ if __name__ == "__main__":
     image_cv = np.array(image)
     gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
     # Show blurred image
     Image.fromarray(gray).save("Blurred Image.png")
     edges_cv = cv2.Canny(gray, 0, 200, apertureSize=3)
@@ -259,17 +394,27 @@ if __name__ == "__main__":
                        [1, 1, 1],
                        [0, 1, 0]], np.uint8)
     # Perform morphological operations
-    # kernel = np.ones((3, 3), np.uint8)
     edges_cv = cv2.dilate(edges_cv, kernel, iterations=2)
-    # edges_cv = cv2.erode(edges_cv, kernel, iterations=2)
+
 
     # Show morphed edges
     Image.fromarray(edges_cv).save("Edges.png")
 
-
     # Perform Hough Line Transform
     lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 180, threshold=300, minLineLength=100, maxLineGap=10)
-
+    # show lines as lines.png
+    
+   
+    
+    # Draw lines on the image
+    image_cv = np.zeros(image_cv.shape, dtype=np.uint8)
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    image_cv = Image.fromarray(image_cv)
+    image_cv.save("lines.png")
+    
     # Draw lines on the image
     image_cv = np.array(image_cv)
     if lines is not None:
@@ -279,6 +424,61 @@ if __name__ == "__main__":
     image_cv = Image.fromarray(image_cv)
     image_cv.save("Hough Lines.png")
 
+
+    width, height = image_cv.size
+    seed_point = (width // 2, height // 2)  # Use the center of the image as the seed point
+    new_color = (0, 0, 255)
+    image_cv = flood_fill(image_cv, seed_point, new_color)
+    image_cv.save("flood_fill.png")
+    restore_blue_pixels(image_path, "flood_fill.png", "res.png")
+    outputBoundryPath = 'outputBoundry.png'
+    contoursFinded,white_pixels = find_blue_contours("flood_fill.png", outputBoundryPath)
+    print(f"Number of contours found: {len(contoursFinded)} num of white pixels: {len(white_pixels)}")
+    finalOutput = 'finalOutput.png'
+    
+    image_path2 = image_path
+    orginImage = Image.open(image_path2)
+    draw_boundaries_on_original(image_path2, white_pixels, finalOutput)
+    create_black_image_with_white_pixels("black_image.png", width, height, white_pixels)
+    # lower_green = [35, 50, 50]  # Yeşil renk için HSV alt sınır
+    # upper_green = [85, 255, 255]  # Yeşil renk için HSV üst sınır
+    # corners = find_colored_region_corners("Hough Lines.png", lower_green, upper_green)
+    # 
+    # image_cv = cv2.imread("Hough Lines.png")
+    # original_image = cv2.imread(image_path)
+    # hsv = cv2.cvtColor(image_cv, cv2.COLOR_BGR2HSV)
+    # mask = cv2.inRange(hsv, np.array(lower_green), np.array(upper_green))
+    # mask_inv = cv2.bitwise_not(mask)
+    # image_no_green = cv2.bitwise_and(image_cv, image_cv, mask=mask_inv)
+    # image_no_green += cv2.bitwise_and(original_image, original_image, mask=mask)
+# 
+    # largest_area = 0
+    # largest_box = None
+    # if corners:
+        # for box in corners:
+            # area = cv2.contourArea(box)
+            # if area > largest_area:
+                # largest_area = area
+                # largest_box = box
+# 
+    # if largest_box is not None:
+        # cv2.drawContours(image_no_green, [largest_box], 0, (0, 255, 0), 2)
+        # for point in largest_box:
+            # print(f"Corner: {point}")
+        # print(f"Area of the largest quadrilateral: {largest_area} pixels")
+# 
+    # cv2.imwrite("lastOutput.png", image_no_green)
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
     # top_quads = find_largest_quadrilaterals(edges, top_n=10)
     
     # if top_quads:
