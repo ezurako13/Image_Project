@@ -2,6 +2,9 @@ import numpy as np
 from PIL import Image, ImageOps, ImageDraw, ImageFilter
 import math
 import cv2
+from skimage import img_as_float
+from skimage.segmentation import active_contour
+from skimage.filters import gaussian
 
 def rgb_to_grayscale(image):
     return ImageOps.grayscale(image)
@@ -235,7 +238,7 @@ def draw_quadrilateral(image, quad, color="red", width=3):
     return image
 
 if __name__ == "__main__":
-    image_path = 'input3.jpg'
+    image_path = 'input.jpg'
     image = Image.open(image_path)
     
     # edges = canny_edge_detection(image)
@@ -260,7 +263,7 @@ if __name__ == "__main__":
                        [0, 1, 0]], np.uint8)
     # Perform morphological operations
     # kernel = np.ones((3, 3), np.uint8)
-    edges_cv = cv2.dilate(edges_cv, kernel, iterations=2)
+    edges_cv = cv2.dilate(edges_cv, kernel, iterations=1)
     # edges_cv = cv2.erode(edges_cv, kernel, iterations=2)
 
     # Show morphed edges
@@ -268,7 +271,17 @@ if __name__ == "__main__":
 
 
     # Perform Hough Line Transform
-    lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 180, threshold=300, minLineLength=100, maxLineGap=10)
+    lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 720, threshold=300, minLineLength=100, maxLineGap=10)
+ 
+    # Show the hough lines
+    hough_lines = np.zeros((image_cv.shape[0], image_cv.shape[1], 3), np.uint8)
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(hough_lines, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    hough_lines = Image.fromarray(hough_lines)
+    hough_lines.save("Lines.png")
+
 
     # Draw lines on the image
     image_cv = np.array(image_cv)
@@ -278,6 +291,23 @@ if __name__ == "__main__":
             cv2.line(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
     image_cv = Image.fromarray(image_cv)
     image_cv.save("Hough Lines.png")
+
+    image = Image.open("Lines.png")
+
+    # Apply active contour to Lines
+    image_float = img_as_float(np.array(image))
+    s = np.linspace(0, 2*np.pi, 400)
+    init = np.array([image_float.shape[1]/2 + 100*np.cos(s), image_float.shape[0]/2 + 100*np.sin(s)]).T
+    snake = active_contour(gaussian(image_float, 3), init, alpha=0.015, beta=10, gamma=0.001)
+
+    # Draw the active contour on the image
+    for i in range(len(snake) - 1):
+        cv2.line(image_cv, (int(snake[i, 0]), int(snake[i, 1])), (int(snake[i+1, 0]), int(snake[i+1, 1])), (255, 0, 0), 2)
+    cv2.line(image_cv, (int(snake[-1, 0]), int(snake[-1, 1])), (int(snake[0, 0]), int(snake[0, 1])), (255, 0, 0), 2)
+
+    image_cv = Image.fromarray(image_cv)
+    image_cv.save("Active Contour.png")
+
 
     # top_quads = find_largest_quadrilaterals(edges, top_n=10)
     
