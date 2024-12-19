@@ -236,6 +236,7 @@ def draw_quadrilateral(image, quad, color="red", width=3):
         end = quad_points[(i + 1) % 4]
         draw.line([start, end], fill=color, width=width)
     return image
+
 def find_colored_region_corners(image_path, lower_color, upper_color):
     # Görüntüyü yükle
     image = cv2.imread(image_path)
@@ -262,6 +263,7 @@ def find_colored_region_corners(image_path, lower_color, upper_color):
         corners.append(box)
     
     return corners
+
 def find_blue_contours(image_path, output_image_path):
     # Load the image
     image = cv2.imread(image_path)
@@ -320,6 +322,7 @@ def flood_fill(image, seed_point, new_color):
 
     # Convert numpy array back to PIL image
     return Image.fromarray(image_np)
+
 def restore_blue_pixels(original_image_path, flood_filled_image_path, output_image_path):
     # Load the images
     flood_filled_image = cv2.imread(flood_filled_image_path)
