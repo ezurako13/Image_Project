@@ -2,9 +2,7 @@ import numpy as np
 from PIL import Image, ImageOps, ImageDraw, ImageFilter
 import math
 import cv2
-from skimage import img_as_float
-from skimage.segmentation import active_contour
-from skimage.filters import gaussian
+
 
 def rgb_to_grayscale(image):
     return ImageOps.grayscale(image)
@@ -296,7 +294,7 @@ def find_blue_contours(image_path, output_image_path):
 
     return contours, white_pixels
 
-def flood_fill(image, seed_point, new_color):
+def flood_fill(image, seed_point, new_color, scale=10):
     # Convert PIL image to numpy array
     image_np = np.array(image)
 
@@ -307,21 +305,38 @@ def flood_fill(image, seed_point, new_color):
 
     h, w = gray_image.shape[:2]
 
-    # Check if seed_point is within the image bounds
-    if not (0 <= seed_point[0] < w and 0 <= seed_point[1] < h):
-        raise ValueError("seed_point is out of image bounds")
-
-    # Get the color of the seed point
-    seed_color = gray_image[seed_point[1], seed_point[0]]
-
     # Create a mask for flood fill
     mask = np.zeros((h + 2, w + 2), np.uint8)
 
-    # Perform flood fill
-    cv2.floodFill(image_np, mask, seed_point, new_color, (10,), (10,), cv2.FLOODFILL_FIXED_RANGE)
+    # print("seed_point ", seed_point)
+
+    # print("seed_point ", seed_point)
+    # print("scale ", scale)
+    # find nearest black pixel in all directions
+    for y in range(seed_point[0] - scale*5, seed_point[0] + scale*5):
+        # print("y ", y, "x ", seed_point[1])
+        for x in range(seed_point[1] - scale*5, seed_point[1] + scale*5):
+            # print("x ", x)
+            # print(y, x)
+            # if gray_image[y, x] == 0:
+                # seed_point = (y, x)
+                # print("seed_point ", seed_point)
+                
+                # seed_point = (seed_point[1], seed_point[0])
+
+            # Perform flood fill
+            cv2.floodFill(image_np, mask, (x, y), new_color, (10,), (10,), cv2.FLOODFILL_FIXED_RANGE)
+
+            # image_np[y, x] = new_color
+                # break
+        # if gray_image[y, x] == 0:
+        #     break
+    
+    # print("seed_point ", seed_point)
+
 
     # Convert numpy array back to PIL image
-    return Image.fromarray(image_np)
+    return image_np
 
 def restore_blue_pixels(original_image_path, flood_filled_image_path, output_image_path):
     # Load the images
@@ -378,19 +393,25 @@ def create_black_image_with_white_pixels(image_name, width, height, coordinates)
     # Save the result
     cv2.imwrite(image_name, image)
 
-if __name__ == "__main__":
-    image_path = 'input2.jpg'
+def gurpinar(image_path):
+    # image_path = 'input2.jpg'
     image = Image.open(image_path)
     
     # edges = canny_edge_detection(image)
 
+    image_height = image.size[1]
+    image_width = image.size[0]
+
+    scale = min(image_height, image_width) // 120
+
     # Convert PIL image to OpenCV format
     image_cv = np.array(image)
     gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
     # Show blurred image
     Image.fromarray(gray).save("Blurred Image.png")
-    edges_cv = cv2.Canny(gray, 0, 200, apertureSize=3)
+    edges_cv = cv2.Canny(gray, 50, 200, apertureSize=3)
 
     # Show edges
     Image.fromarray(edges_cv).save("Edges.png")
@@ -407,7 +428,7 @@ if __name__ == "__main__":
     Image.fromarray(edges_cv).save("Edges.png")
 
     # Perform Hough Line Transform
-    lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 720, threshold=300, minLineLength=100, maxLineGap=10)
+    lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 720, threshold=scale*30, minLineLength=scale*5, maxLineGap=scale)
  
     # Show the hough lines
     hough_lines = np.zeros((image_cv.shape[0], image_cv.shape[1], 3), np.uint8)
@@ -419,21 +440,30 @@ if __name__ == "__main__":
     hough_lines.save("Lines.png")
 
 
-    # Draw lines on the image
-    image_cv = np.array(image_cv)
-    if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            cv2.line(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    image_cv = Image.fromarray(image_cv)
-    image_cv.save("Hough Lines.png")
+    # # Draw lines on the image
+    # image_cv = np.array(image_cv)
+    # if lines is not None:
+    #     for line in lines:
+    #         x1, y1, x2, y2 = line[0]
+    #         cv2.line(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    # image_cv = Image.fromarray(image_cv)
+    # image_cv.save("Hough Lines.png")
 
+
+    hough_lines = cv2.dilate(np.array(hough_lines), kernel, iterations=3)
+    image_cv = Image.fromarray(hough_lines)
+
+    # image_cv = hough_lines
+
+    # # Create RGB image from binary image
+    # image_cv = cv2.cvtColor(edges_cv, cv2.COLOR_GRAY2BGR)
+    # image_cv = Image.fromarray(image_cv)
 
     width, height = image_cv.size
-    seed_point = (width // 2, height // 2)  # Use the center of the image as the seed point
-    new_color = (0, 0, 255)
-    image_cv = flood_fill(image_cv, seed_point, new_color)
-    image_cv.save("flood_fill.png")
+    # seed_point = (width // 2, height // 2)  # Use the center of the image as the seed point
+    seed_point = (height // 2, width // 2)  # Use the center of the image as the seed point
+    image_cv = flood_fill(image_cv, seed_point, (0, 0, 255), scale=scale)
+    Image.fromarray(image_cv).save("flood_fill.png")
     restore_blue_pixels(image_path, "flood_fill.png", "res.png")
     outputBoundryPath = 'outputBoundry.png'
     contoursFinded,white_pixels = find_blue_contours("flood_fill.png", outputBoundryPath)
@@ -444,82 +474,62 @@ if __name__ == "__main__":
     orginImage = Image.open(image_path2)
     draw_boundaries_on_original(image_path2, white_pixels, finalOutput)
     create_black_image_with_white_pixels("black_image.png", width, height, white_pixels)
-    # lower_green = [35, 50, 50]  # Yeşil renk için HSV alt sınır
-    # upper_green = [85, 255, 255]  # Yeşil renk için HSV üst sınır
-    # corners = find_colored_region_corners("Hough Lines.png", lower_green, upper_green)
-    # 
-    # image_cv = cv2.imread("Hough Lines.png")
-    # original_image = cv2.imread(image_path)
-    # hsv = cv2.cvtColor(image_cv, cv2.COLOR_BGR2HSV)
-    # mask = cv2.inRange(hsv, np.array(lower_green), np.array(upper_green))
-    # mask_inv = cv2.bitwise_not(mask)
-    # image_no_green = cv2.bitwise_and(image_cv, image_cv, mask=mask_inv)
-    # image_no_green += cv2.bitwise_and(original_image, original_image, mask=mask)
-# 
-    # largest_area = 0
-    # largest_box = None
-    # if corners:
-        # for box in corners:
-            # area = cv2.contourArea(box)
-            # if area > largest_area:
-                # largest_area = area
-                # largest_box = box
-# 
-    # if largest_box is not None:
-        # cv2.drawContours(image_no_green, [largest_box], 0, (0, 255, 0), 2)
-        # for point in largest_box:
-            # print(f"Corner: {point}")
-        # print(f"Area of the largest quadrilateral: {largest_area} pixels")
-# 
-    # cv2.imwrite("lastOutput.png", image_no_green)
     
+    
+    # image = Image.open("./mask_blueddd.png")
+    # image_cv = np.array(image)
+    # # # Apply active contour to Lines
+    # # image_float = img_as_float(np.array(image))
+    # # s = np.linspace(0, 2*np.pi, 400)
+    # # init = np.array([image_float.shape[1]/2 + 100*np.cos(s), image_float.shape[0]/2 + 100*np.sin(s)]).T
+    # # snake = active_contour(gaussian(image_float, 3), init, alpha=0.015, beta=10, gamma=0.001)
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    image = Image.open("Lines.png")
+    # # # Draw the active contour on the image
+    # # for i in range(len(snake) - 1):
+    # #     cv2.line(image_cv, (int(snake[i, 0]), int(snake[i, 1])), (int(snake[i+1, 0]), int(snake[i+1, 1])), (255, 0, 0), 2)
+    # # cv2.line(image_cv, (int(snake[-1, 0]), int(snake[-1, 1])), (int(snake[0, 0]), int(snake[0, 1])), (255, 0, 0), 2)
 
-    # Apply active contour to Lines
-    image_float = img_as_float(np.array(image))
-    s = np.linspace(0, 2*np.pi, 400)
-    init = np.array([image_float.shape[1]/2 + 100*np.cos(s), image_float.shape[0]/2 + 100*np.sin(s)]).T
-    snake = active_contour(gaussian(image_float, 3), init, alpha=0.015, beta=10, gamma=0.001)
-
-    # Draw the active contour on the image
-    for i in range(len(snake) - 1):
-        cv2.line(image_cv, (int(snake[i, 0]), int(snake[i, 1])), (int(snake[i+1, 0]), int(snake[i+1, 1])), (255, 0, 0), 2)
-    cv2.line(image_cv, (int(snake[-1, 0]), int(snake[-1, 1])), (int(snake[0, 0]), int(snake[0, 1])), (255, 0, 0), 2)
-
-    image_cv = Image.fromarray(image_cv)
-    image_cv.save("Active Contour.png")
+    # Image.fromarray(image_cv).show()
+    # countours, _ = cv2.findContours(image_cv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # blank_image = np.zeros((image_cv.shape[0], image_cv.shape[1], 3), np.uint8)
+    # image_cv = cv2.drawContours(blank_image, countours, -1, (0, 255, 0), 3)
 
 
-    # top_quads = find_largest_quadrilaterals(edges, top_n=10)
+    # flood_fill_cv = flood_fill(image_cv, seed_point, (0, 0, 255), scale=scale)
+    # Image.fromarray(flood_fill_cv).show()
+    # countours, _ = cv2.findContours(flood_fill_cv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # image_cv = cv2.drawContours(blank_image, countours, -1, (255, 0, 0), 3)
+
+    # image_cv = Image.fromarray(image_cv)
+    # image_cv.save("Active Contour.png")
+
+def run_tum_imagelar():
+    image_paths = [ 
+                    "input.jpg",
+                    "input2.jpg",
+                    "input3.jpg",
+                    "input4.jpg",
+                    "input5.jpg",
+                    "input6.jpg",
+                    "input7.jpg",
+                    "input8.jpg",
+                    "input9.jpg",
+                    "input10.jpg",
+                    "input11.jpg",
+                    "input12.jpg",
+                    "input14.jpg",
+                    "input15.jpg"
+                    ]
     
-    # if top_quads:
-    #     gray_image = rgb_to_grayscale(image)
-    #     gray_array = np.array(gray_image)
-    #     variances = []
-        
-    #     for quad in top_quads:
-    #         var = evaluate_quadrilateral(gray_array, quad)
-    #         variances.append((var, quad))
-        
-    #     variances.sort(key=lambda x: x[0])
-    #     best_quad = variances[0][1]
-        
-    #     result_image = image.convert("RGB")
-    #     result_image = draw_quadrilateral(result_image, best_quad, color="red", width=3)
-    # else:
-    #     print("Yeterli dörtgen bulunamadı.")
-    #     result_image = image.convert("RGB")
-    
-    # output_path = 'output.jpg'
-    # result_image.save(output_path)
-    # # result_image.show()
+    for image_path in image_paths:
+        print(f"Processing {image_path}...")
+        gurpinar(image_path)
+        # print(f"Processing {image_path} is done.\n")
+        # Wait for user input to continue
+        input("Press Enter to continue...")
+
+
+if __name__ == "__main__":
+    run_tum_imagelar()
+    # gurpinar("input6.jpg")
+
