@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image, ImageOps, ImageDraw, ImageFilter
 import math
 import cv2
+import image_processing as xd
 
 
 def rgb_to_grayscale(image):
@@ -96,19 +97,19 @@ def hysteresis(image, weak, strong=255):
 
 def canny_edge_detection(image):
     gray_image = rgb_to_grayscale(image)
-    gray_image.save("Gray Image.png")
+    gray_image.save("outputs/Gray Image.png")
     blurred_image = gaussian_blur(gray_image)
-    blurred_image.save("Blurred Image.png")
+    blurred_image.save("outputs/Blurred Image.png")
     G, theta = sobel_filters(blurred_image)
     non_max_img = non_maximum_suppression(G, theta)
     #show non-maximum suppressed image
-    Image.fromarray(np.uint8(non_max_img)).save("Non-Maximum Suppressed Image.png")
+    Image.fromarray(np.uint8(non_max_img)).save("outputs/Non-Maximum Suppressed Image.png")
     threshold_img, weak, strong = threshold(non_max_img)
     #show threshold image
-    Image.fromarray(np.uint8(threshold_img)).save("Threshold Image.png")
+    Image.fromarray(np.uint8(threshold_img)).save("outputs/Threshold Image.png")
     img_final = hysteresis(threshold_img, weak, strong)
     #show final image
-    Image.fromarray(np.uint8(img_final)).save("Final Image.png")
+    Image.fromarray(np.uint8(img_final)).save("outputs/Final Image.png")
     return img_final
 
 def compute_convex_hull(points):
@@ -280,7 +281,7 @@ def find_blue_contours(image_path, output_image_path):
     contours, _ = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Show the contours 
-    Image.fromarray(mask_blue).save("mask_blueddd.png")
+    Image.fromarray(mask_blue).save("outputs/mask_blueddd.png")
     
     # Draw contours on the original image with white color
     cv2.drawContours(image, contours, -1, (255, 255, 255), 2)
@@ -410,11 +411,11 @@ def gurpinar(image_path):
     # gray = cv2.GaussianBlur(gray, (5, 5), 0)
     # gray = cv2.GaussianBlur(gray, (5, 5), 0)
     # Show blurred image
-    Image.fromarray(gray).save("Blurred Image.png")
+    Image.fromarray(gray).save("outputs/Blurred Image.png")
     edges_cv = cv2.Canny(gray, 50, 200, apertureSize=3)
 
     # Show edges
-    Image.fromarray(edges_cv).save("Edges.png")
+    Image.fromarray(edges_cv).save("outputs/Edges.png")
 
     # Create a kernel with plus shape
     kernel = np.array([[0, 1, 0],
@@ -425,7 +426,7 @@ def gurpinar(image_path):
 
 
     # Show morphed edges
-    Image.fromarray(edges_cv).save("Edges.png")
+    Image.fromarray(edges_cv).save("outputs/Edges.png")
 
     # Perform Hough Line Transform
     lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 720, threshold=scale*30, minLineLength=scale*5, maxLineGap=scale)
@@ -437,7 +438,7 @@ def gurpinar(image_path):
             x1, y1, x2, y2 = line[0]
             cv2.line(hough_lines, (x1, y1), (x2, y2), (0, 255, 0), 2)
     hough_lines = Image.fromarray(hough_lines)
-    hough_lines.save("Lines.png")
+    hough_lines.save("outputs/Lines.png")
 
 
     # # Draw lines on the image
@@ -447,7 +448,7 @@ def gurpinar(image_path):
     #         x1, y1, x2, y2 = line[0]
     #         cv2.line(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
     # image_cv = Image.fromarray(image_cv)
-    # image_cv.save("Hough Lines.png")
+    # image_cv.save("outputs/Hough Lines.png")
 
 
     hough_lines = cv2.dilate(np.array(hough_lines), kernel, iterations=3)
@@ -463,17 +464,28 @@ def gurpinar(image_path):
     # seed_point = (width // 2, height // 2)  # Use the center of the image as the seed point
     seed_point = (height // 2, width // 2)  # Use the center of the image as the seed point
     image_cv = flood_fill(image_cv, seed_point, (0, 0, 255), scale=scale)
-    Image.fromarray(image_cv).save("flood_fill.png")
-    restore_blue_pixels(image_path, "flood_fill.png", "res.png")
-    outputBoundryPath = 'outputBoundry.png'
-    contoursFinded,white_pixels = find_blue_contours("flood_fill.png", outputBoundryPath)
+    
+    
+    # # Apply blue mask ON THE IMAGE
+    # lower = np.array([0, 255, 0])
+    # upper = np.array([0, 255, 0])
+    # mask = cv2.inRange(image_cv, lower, upper)
+    # masked = cv2.bitwise_and(image_cv, image_cv, mask=mask)
+    # result = image_cv - masked
+    # image_cv = cv2.dilate(np.array(result), np.ones((3, 3), np.uint8), iterations=1)
+
+
+    Image.fromarray(image_cv).save("outputs/flood_fill.png")
+    restore_blue_pixels(image_path, "outputs/flood_fill.png", "outputs/res.png")
+    outputBoundryPath = 'outputs/outputBoundry.png'
+    contoursFinded,white_pixels = find_blue_contours("outputs/flood_fill.png", outputBoundryPath)
     print(f"Number of contours found: {len(contoursFinded)} num of white pixels: {len(white_pixels)}")
-    finalOutput = 'finalOutput.png'
+    finalOutput = 'outputs/finalOutput.png'
     
     image_path2 = image_path
     orginImage = Image.open(image_path2)
     draw_boundaries_on_original(image_path2, white_pixels, finalOutput)
-    create_black_image_with_white_pixels("black_image.png", width, height, white_pixels)
+    create_black_image_with_white_pixels("outputs/black_image.png", width, height, white_pixels)
     
     
     # image = Image.open("./mask_blueddd.png")
@@ -501,7 +513,7 @@ def gurpinar(image_path):
     # image_cv = cv2.drawContours(blank_image, countours, -1, (255, 0, 0), 3)
 
     # image_cv = Image.fromarray(image_cv)
-    # image_cv.save("Active Contour.png")
+    # image_cv.save("outputs/Active Contour.png")
 
 def run_tum_imagelar():
     image_paths = [ 
@@ -523,7 +535,7 @@ def run_tum_imagelar():
     
     for image_path in image_paths:
         print(f"Processing {image_path}...")
-        gurpinar(image_path)
+        gurpinar("inputs/" + image_path)
         # print(f"Processing {image_path} is done.\n")
         # Wait for user input to continue
         input("Press Enter to continue...")
@@ -531,5 +543,5 @@ def run_tum_imagelar():
 
 if __name__ == "__main__":
     run_tum_imagelar()
-    # gurpinar("input6.jpg")
+    # gurpinar("input7.jpg")
 
