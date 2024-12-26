@@ -244,13 +244,14 @@ def find_colored_region_corners(image_path, lower_color, upper_color):
         return []
     
     # Görüntüyü HSV formatına çevir
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    
+    hsv = xd.cvtColor(image, "COLOR_BGR2HSV")
+    RETR_EXTERNAL = 0
+    CHAIN_APPROX_SIMPLE = 1
     # Renk aralığına göre maske oluştur
     mask = cv2.inRange(hsv, np.array(lower_color), np.array(upper_color))
     
     # Maskede konturları bul
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = xd.findContours(mask, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)
     
     corners = []
     for cnt in contours:
@@ -268,7 +269,7 @@ def find_blue_contours(image_path, output_image_path):
     image = cv2.imread(image_path)
 
     # Convert the image to HSV
-    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    hsv_image = xd.cvtColor(image, "COLOR_BGR2HSV")
 
     # Define the blue color range in HSV
     lower_blue = np.array([110, 50, 50])
@@ -276,8 +277,10 @@ def find_blue_contours(image_path, output_image_path):
 
     # Create a mask for the blue color
     mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
-
+    RETR_EXTERNAL = 0
+    CHAIN_APPROX_SIMPLE = 1
     # Find contours in the mask
+    #buna dokunamıyorum...
     contours, _ = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Show the contours 
@@ -326,7 +329,7 @@ def flood_fill(image, seed_point, new_color, scale=10):
                 # seed_point = (seed_point[1], seed_point[0])
 
             # Perform flood fill
-            cv2.floodFill(image_np, mask, (x, y), new_color, (10,), (10,), cv2.FLOODFILL_FIXED_RANGE)
+            xd.floodFill(image_np, mask, (x, y), new_color, (10,), (10,), cv2.FLOODFILL_FIXED_RANGE)
 
             # image_np[y, x] = new_color
                 # break
@@ -355,14 +358,14 @@ def restore_blue_pixels(original_image_path, flood_filled_image_path, output_ima
     mask_blue = cv2.inRange(hsv_flood_filled, lower_blue, upper_blue)
 
     # Extract the blue regions from the original image
-    blue_regions = cv2.bitwise_and(original_image, original_image, mask=mask_blue)
+    blue_regions = xd.bitwise_and(original_image, original_image, mask=mask_blue)
 
     # Create an inverse mask to remove the blue regions from the flood filled image
-    mask_blue_inv = cv2.bitwise_not(mask_blue)
-    flood_filled_no_blue = cv2.bitwise_and(flood_filled_image, flood_filled_image, mask=mask_blue_inv)
+    mask_blue_inv = xd.bitwise_not(mask_blue)
+    flood_filled_no_blue = xd.bitwise_and(flood_filled_image, flood_filled_image, mask=mask_blue_inv)
 
     # Combine the images to place the blue regions back into the original image
-    result_image = cv2.add(flood_filled_no_blue, blue_regions)
+    result_image = xd.add(flood_filled_no_blue, blue_regions)
 
     # Save the result
     cv2.imwrite(output_image_path, result_image)
@@ -407,13 +410,13 @@ def gurpinar(image_path):
 
     # Convert PIL image to OpenCV format
     image_cv = np.array(image)
-    gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
+    gray = xd.cvtColor(image_cv, "COLOR_BGR2GRAY")
     # gray = cv2.GaussianBlur(gray, (5, 5), 0)
     # gray = cv2.GaussianBlur(gray, (5, 5), 0)
     # Show blurred image
     Image.fromarray(gray).save("outputs/Blurred Image.png")
+    # edges_cv = xd.Canny(gray, 50, 200, apertureSize=3) // 13659
     edges_cv = cv2.Canny(gray, 50, 200, apertureSize=3)
-
     # Show edges
     Image.fromarray(edges_cv).save("outputs/Edges.png")
 
@@ -542,6 +545,6 @@ def run_tum_imagelar():
 
 
 if __name__ == "__main__":
-    run_tum_imagelar()
-    # gurpinar("input7.jpg")
+    # run_tum_imagelar()
+    gurpinar("inputs/input15.jpg")
 
