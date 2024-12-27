@@ -430,7 +430,7 @@ def gurpinar(image_path):
 
     # Perform Hough Line Transform
     lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 720, threshold=scale*30, minLineLength=scale*5, maxLineGap=scale)
- 
+
     # Show the hough lines
     hough_lines = np.zeros((image_cv.shape[0], image_cv.shape[1], 3), np.uint8)
     if lines is not None:
@@ -542,6 +542,6 @@ def run_tum_imagelar():
 
 
 if __name__ == "__main__":
-    run_tum_imagelar()
-    # gurpinar("input7.jpg")
+    # run_tum_imagelar()
+    gurpinar("./inputs/input.jpg")
 
