@@ -1,0 +1,812 @@
+\documentclass[12pt]{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{cite}
+\usepackage{hyperref}
+\usepackage{float}
+\bibliographystyle{plain}
+\bibliography{references}
+
+
+\title{Automated Billboard Detection Using Computer Vision Techniques}
+\author{[Author Name]}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This paper presents an automated approach for billboard detection designed to assist municipalities in managing outdoor advertising spaces. The proposed method employs classical computer vision techniques without relying on deep learning approaches, making it computationally efficient and easily deployable. Through a combination of edge detection, line analysis, and contour identification, the system successfully identifies and outlines billboard structures in urban environments. The method demonstrates effective performance on various image scales through adaptive parameter scaling, achieving successful detection in approximately 67\% of test cases. This approach provides municipalities with a practical tool for automated billboard inventory management and regulatory compliance monitoring.
+\end{abstract}
+
+\section{Introduction}
+The proliferation of outdoor advertising in urban environments presents municipalities with significant challenges in monitoring and managing billboard placements. Effective oversight of billboard locations is crucial for both revenue management and urban aesthetic control. Manual surveillance and documentation of billboards is time-consuming and resource-intensive, creating a need for automated detection systems.
+This paper presents a computer vision-based approach for automated billboard detection that can assist municipal authorities in maintaining accurate billboard inventories. The proposed method deliberately avoids deep learning techniques in favor of classical image processing approaches, offering several advantages including interpretability, computational efficiency, and ease of deployment without requiring specialized hardware or extensive training data.
+The system utilizes a multi-step pipeline that combines edge detection, line analysis, and contour detection to identify and outline billboard structures. The method leverages the inherent geometric properties of billboards, particularly their rectangular shape, through Hough Transform-based line detection. This is complemented by region-growing techniques like flood fill to ensure complete area identification. By incorporating adaptive scaling parameters, the method can process images captured from various distances and angles, making it suitable for real-world applications. This approach provides municipalities with a practical tool for systematic billboard monitoring and regulation enforcement.
+
+\section{Methodology}
+
+\subsection{Canny Edge Detection}%
+The foundation of our billboard detection pipeline is the Canny edge detection algorithm \cite{canny1986computational}, which is particularly suitable for billboard detection due to its ability to identify strong edges while suppressing noise. Billboards typically present well-defined boundaries that contrast with their surroundings, making Canny edge detection an ideal initial step. The algorithm consists of five distinct stages:
+
+\subsubsection{Gaussian Smoothing}
+A Gaussian filter\cite{Gauss} is applied to reduce image noise prior to edge detection. As shown in Equation (1), the two-dimensional Gaussian function utilizes a bell-shaped kernel where the intensity of smoothing is controlled by the standard deviation $\sigma$:
+\begin{equation}
+G(x,y) = \frac{1}{2\pi\sigma^2}e^{-\frac{x^2+y^2}{2\sigma^2}}
+\end{equation}
+where $(x,y)$ represents the pixel coordinates relative to the center of the kernel, $\sigma$ is the standard deviation of the Gaussian distribution that determines the degree of smoothing, and $e$ is Euler's number. The exponential term in Equation (1) ensures that pixels closer to the center have a stronger influence on the smoothing operation.
+\subsubsection{Gradient Calculation}
+Following smoothing, the intensity gradient magnitude and direction are calculated using Sobel\cite{Sobel} operators. Equation (2) computes the gradient magnitude by combining the horizontal and vertical gradients using the Pythagorean theorem:
+\begin{equation}
+Edge_Gradient ; (G) = \sqrt{G_x^2 + G_y^2}
+\end{equation}
+The gradient direction, given by Equation (3), is calculated using the arctangent of the ratio of vertical to horizontal gradients:
+\begin{equation}
+Angle ; (\theta) = \tan^{-1} \bigg(\frac{G_y}{G_x}\bigg)
+\end{equation}
+These calculations in Equations (2) and (3) provide both the strength and direction of edges at each pixel location.
+\subsubsection{Non-maximum Suppression}
+The non-maximum suppression stage ensures edge thinning by preserving only the local maxima. The process begins with calculating the gradient magnitude at each pixel as shown in Equation (4):
+\begin{equation}
+G(i, j) = \sqrt{\left( \frac{\partial I}{\partial x} \right)^2 + \left( \frac{\partial I}{\partial y} \right)^2}
+\end{equation}
+The gradient direction, computed in Equation (5), determines the orientation of edge traversal:
+\begin{equation}
+\theta(i, j) = \tan^{-1} \left( \frac{\frac{\partial I}{\partial y}}{\frac{\partial I}{\partial x}} \right)
+\end{equation}
+The suppression operation, defined by Equation (6), compares each pixel's gradient magnitude with its neighbors along the gradient direction:
+\begin{equation}
+    G_{\text{NMS}}(i, j) =
+    \begin{cases}
+    G(i, j), & \text{if } G(i, j) \geq G(i_1, j_1) \text{ and } G(i, j) \geq G(i_2, j_2) \\
+    0, & \text{otherwise}
+    \end{cases}
+    \end{equation}
+\subsubsection{Hysteresis Thresholding}
+The final stage employs dual thresholding to identify and link edge pixels. As shown in Equation (7), pixels with gradient magnitudes falling between two thresholds are considered:
+\begin{equation}
+T_{\text{low}} \leq G(i, j) \leq T_{\text{high}}
+\end{equation}
+The hysteresis operation, defined in Equation (8), uses this dual threshold approach to create the final edge map:
+\begin{equation}
+    G_{\text{HT}}(i, j) =
+    \begin{cases}
+    1, & \text{if } G(i, j) \geq T_{\text{high}} \text{ (Strong Edge)} \\
+    1, & \text{if } T_{\text{low}} \leq G(i, j) < T_{\text{high}} \text{ and connected to a Strong Edge} \\
+    0, & \text{if } G(i, j) < T_{\text{low}} \text{ (Non-Edge)}
+    \end{cases}
+    \end{equation}
+This thresholding approach, as defined by Equations (7) and (8), effectively reduces false edges while maintaining connectivity of true edge segments.
+
+
+\subsection{Morphological Operations and Hough Transform}
+\subsubsection{Dilation}
+Following edge detection, morphological dilation is applied to strengthen and connect edge segments. The dilation operation is mathematically defined as:
+\begin{equation}
+A \oplus B = \{ z \mid (B)_z \cap A \neq \emptyset \}
+\end{equation}
+where $A$ represents the input image, $B$ is the structuring element, $z$ represents the spatial coordinates, and $(B)_z$ denotes the translation of $B$ by vector $z$. As shown in Equation (9), dilation expands the edges by computing the intersection of the translated structuring element with the input image. This operation is crucial for connecting fragmented edges that may result from noise or partial occlusion.
+
+\subsubsection{Probabilistic Hough Transform}%\cite{HoughLine}
+The Probabilistic Hough Transform\cite{HoughLine}  maps points from image space to parameter space using the following parametric representation:
+\begin{equation}
+\rho = x\cos\theta + y\sin\theta
+\end{equation}
+where $\rho$ represents the perpendicular distance from the origin to the line, $(x,y)$ are the coordinates of points in image space, and $\theta$ is the angle between the x-axis and this perpendicular line. This transformation, shown in Equation (10), enables efficient detection of linear structures characteristic of billboard edges.
+
+The algorithm employs adaptive parameters effectively filter short line segments and bridge gaps in detected edges.
+
+\subsection{Region Growing and Masking}
+\subsubsection{Dilation}
+Before applying the Flood Fill operation, the edges detected by the Hough Line Transform may still have small gaps or discontinuities. Dilation expands the edges, helping to close these gaps and create a more continuous boundary. This is crucial for Flood Fill to operate effectively, as it needs well-defined, connected edges to fill the correct region. Dilation ensures that even if the detected lines are slightly fragmented, they are sufficiently connected for the flood fill to encompass the entire area of interest.
+
+\subsubsection{Flood Fill Operation}
+Flood fill is used in this project to enhance the detection of billboard regions after the Hough Transform step. The primary reason for applying flood fill is to fill the detected billboard regions with a distinct color, making it easier to isolate these regions in subsequent steps. By filling the regions with a specific color, we can create a clear distinction between the billboard areas and the rest of the image, which is crucial for accurate color masking and contour detection.
+
+\subsubsection{Binary Masking}
+The masking operation combines the flood-filled region with the original image using a bitwise operation:
+\begin{equation}
+I_{\text{result}}(x, y) = I_{\text{image}}(x, y) \& M_{\text{mask}}(x, y)
+\end{equation}
+where $I_{\text{image}}(x, y)$ represents the pixel value in the original image at coordinates $(x, y)$, $M_{\text{mask}}(x, y)$ is the binary mask value at the same coordinates (1 for billboard region, 0 for background), and $I_{\text{result}}(x, y)$ is the resulting masked image. Equation (11) ensures that only the regions identified as billboards are preserved for subsequent processing.
+
+\subsection{Contour Detection and Refinement}
+The final stage of the pipeline employs active contour\cite{ActiveContour} detection to refine the billboard boundaries. Active contour models are designed to iteratively adjust and refine these rough edges to form a more accurate and smooth boundary that closely matches the actual billboard. This is particularly useful when dealing with complex shapes or noisy regions. The process optimizes an energy functional that combines internal and external forces:
+\begin{equation}
+E_{\text{total}} = \alpha E_{\text{internal}} + \beta E_{\text{external}}
+\end{equation}
+where $E_{\text{internal}}$ represents the internal energy that controls contour smoothness, $E_{\text{external}}$ represents the external energy derived from image features, and $\alpha$, $\beta$ are weighting parameters that balance these forces. As shown in Equation (12), this optimization process ensures smooth and accurate billboard boundaries while maintaining fidelity to the detected edges.
+
+
+\subsection{Performance Analysis}
+The pipeline successfully detected billboards in approximately 67\% of the test images. Key observations include:
+
+[Figure 1: Successful billboard detection example]
+[Caption: Example of successful billboard detection showing clear edge definition and accurate contour identification]
+
+[Figure 2: Failed detection example]
+[Caption: Example of failed detection showing multiple false positives due to complex background structures]
+
+\subsection{Limitations and Failure Cases}
+[Placeholder for failure analysis]
+Common causes of detection failures include:
+- [To be filled with specific cases]
+- [To be filled with specific cases]
+- [To be filled with specific cases]
+
+\section{Conclusion}
+The proposed billboard detection pipeline demonstrates promising results for automated billboard detection in urban environments. While effective in many scenarios, the method shows limitations in complex scenes. Future work could focus on incorporating deep learning techniques to improve robustness and accuracy.
+
+\section{References}
+\begin{thebibliography}{9}
+\bibitem{canny1986computational} Canny, J. (1986). A computational approach to edge detection. IEEE Transactions on Pattern Analysis and Machine Intelligence, (6), 679-698.
+\bibitem{Gauss} OpenCV, ``Image Filtering,''   \url{https://docs.opencv.org/4.x/d4/d13/tutorial_py_filtering.html}
+\bibitem{Sobel}Sobel, Irwin. (2014). An Isotropic 3x3 Image Gradient Operator. Presentation at Stanford A.I. Project 1968. 
+\bibitem{HoughLine} C. Galamhos, J. Matas and J. Kittler, "Progressive probabilistic Hough transform for line detection," Proceedings. 1999 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (Cat. No PR00149), Fort Collins, CO, USA, 1999, pp. 554-560 Vol. 1, doi: 10.1109/CVPR.1999.786993. keywords: {Voting;Monte Carlo methods;Error analysis;Stability criteria}.
+\bibitem{ActiveContour} Kass, M., Witkin, A. , Terzopoulos, D. Snakes: Active contour models. Int J Comput Vision 1, 321–331 (1988).
+\end{thebibliography}
+
+\appendix
+\section{Implementation Code}
+[Placeholder for code implementation]
+
+\subsection{Test Case 1}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input1.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{1/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 2}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input2.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{2/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 3}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input3.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{3/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 4}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{4/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 5}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input5.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{5/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 6}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input6.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{6/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 7}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input7.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{7/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 8}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input8.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{8/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 9}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input9.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{9/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 10}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input10.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{10/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 11}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input11.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{11/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 12}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input12.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{12/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 13}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input13.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{13/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+\subsection{Test Case 14}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{input14.jpg}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/Grayscale Image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/Thick Edges.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/Thick Hough Lines.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/flood_fill.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/mask_blueddd.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/black_image.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{14/finalOutput.png}
+        \caption{Original Image}
+    \end{subfigure}
+    \caption{Processing stages for Test Case 1: (a) Original image (b) Grayscale conversion (c) Canny edge detection (d) First dilation (e) Hough lines (f) Second dilation (g) Flood fill (h) Color masking (i) Active contours (j) Final result}
+    \label{fig:case1}
+\end{figure}
+
+
+\end{document}

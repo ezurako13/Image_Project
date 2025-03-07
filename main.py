@@ -97,19 +97,19 @@ def hysteresis(image, weak, strong=255):
 
 def canny_edge_detection(image):
     gray_image = rgb_to_grayscale(image)
-    gray_image.save("outputs/Gray Image.png")
+    gray_image.save(f"outputs/{input_name}/Gray Image.png")
     blurred_image = gaussian_blur(gray_image)
-    blurred_image.save("outputs/Blurred Image.png")
+    blurred_image.save(f"outputs/{input_name}/Blurred Image.png")
     G, theta = sobel_filters(blurred_image)
     non_max_img = non_maximum_suppression(G, theta)
     #show non-maximum suppressed image
-    Image.fromarray(np.uint8(non_max_img)).save("outputs/Non-Maximum Suppressed Image.png")
+    Image.fromarray(np.uint8(non_max_img)).save(f"outputs/{input_name}/Non-Maximum Suppressed Image.png")
     threshold_img, weak, strong = threshold(non_max_img)
     #show threshold image
-    Image.fromarray(np.uint8(threshold_img)).save("outputs/Threshold Image.png")
+    Image.fromarray(np.uint8(threshold_img)).save(f"outputs/{input_name}/Threshold Image.png")
     img_final = hysteresis(threshold_img, weak, strong)
     #show final image
-    Image.fromarray(np.uint8(img_final)).save("outputs/Final Image.png")
+    Image.fromarray(np.uint8(img_final)).save(f"outputs/{input_name}/Final Image.png")
     return img_final
 
 def compute_convex_hull(points):
@@ -281,7 +281,7 @@ def find_blue_contours(image_path, output_image_path):
     contours, _ = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Show the contours 
-    Image.fromarray(mask_blue).save("outputs/mask_blueddd.png")
+    Image.fromarray(mask_blue).save(f"outputs/{input_name}/mask_blueddd.png")
     
     # Draw contours on the original image with white color
     cv2.drawContours(image, contours, -1, (255, 255, 255), 2)
@@ -408,14 +408,18 @@ def gurpinar(image_path):
     # Convert PIL image to OpenCV format
     image_cv = np.array(image)
     gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
-    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    # gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    # Show blurred image
-    Image.fromarray(gray).save("outputs/Blurred Image.png")
-    edges_cv = cv2.Canny(gray, 50, 200, apertureSize=3)
+    # Show Grayscale image
+    Image.fromarray(gray).save(f"outputs/{input_name}/Grayscale Image.png")
 
+    # blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    # blurred = cv2.GaussianBlur(blurred, (5, 5), 0)
+    # # Show blurred image
+    # Image.fromarray(blurred).save(f"outputs/{input_name}/Blurred Image.png")
+
+    edges_cv = cv2.Canny(gray, 50, 200, apertureSize=3)
+    # edges_cv = xd.canny_edge_detection(gray, 0.05, 0.15, 1.4)
     # Show edges
-    Image.fromarray(edges_cv).save("outputs/Edges.png")
+    Image.fromarray(edges_cv).save(f"outputs/{input_name}/Edges.png")
 
     # Create a kernel with plus shape
     kernel = np.array([[0, 1, 0],
@@ -424,9 +428,8 @@ def gurpinar(image_path):
     # Perform morphological operations
     edges_cv = cv2.dilate(edges_cv, kernel, iterations=2)
 
-
     # Show morphed edges
-    Image.fromarray(edges_cv).save("outputs/Edges.png")
+    Image.fromarray(edges_cv).save(f"outputs/{input_name}/Thick Edges.png")
 
     # Perform Hough Line Transform
     lines = cv2.HoughLinesP(edges_cv, 1, np.pi / 720, threshold=scale*30, minLineLength=scale*5, maxLineGap=scale)
@@ -438,7 +441,7 @@ def gurpinar(image_path):
             x1, y1, x2, y2 = line[0]
             cv2.line(hough_lines, (x1, y1), (x2, y2), (0, 255, 0), 2)
     hough_lines = Image.fromarray(hough_lines)
-    hough_lines.save("outputs/Lines.png")
+    hough_lines.save(f"outputs/{input_name}/Lines.png")
 
 
     # # Draw lines on the image
@@ -448,11 +451,13 @@ def gurpinar(image_path):
     #         x1, y1, x2, y2 = line[0]
     #         cv2.line(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
     # image_cv = Image.fromarray(image_cv)
-    # image_cv.save("outputs/Hough Lines.png")
+    # image_cv.save(f"outputs/{input_name}/Hough Lines.png")
 
 
     hough_lines = cv2.dilate(np.array(hough_lines), kernel, iterations=3)
     image_cv = Image.fromarray(hough_lines)
+    # Show Thick hough lines
+    image_cv.save(f"outputs/{input_name}/Thick Hough Lines.png")
 
     # image_cv = hough_lines
 
@@ -475,17 +480,17 @@ def gurpinar(image_path):
     # image_cv = cv2.dilate(np.array(result), np.ones((3, 3), np.uint8), iterations=1)
 
 
-    Image.fromarray(image_cv).save("outputs/flood_fill.png")
-    restore_blue_pixels(image_path, "outputs/flood_fill.png", "outputs/res.png")
-    outputBoundryPath = 'outputs/outputBoundry.png'
-    contoursFinded,white_pixels = find_blue_contours("outputs/flood_fill.png", outputBoundryPath)
+    Image.fromarray(image_cv).save(f"outputs/{input_name}/flood_fill.png")
+    restore_blue_pixels(image_path, f"outputs/{input_name}/flood_fill.png", f"outputs/{input_name}/res.png")
+    outputBoundryPath = f'outputs/{input_name}/outputBoundry.png'
+    contoursFinded,white_pixels = find_blue_contours(f"outputs/{input_name}/flood_fill.png", outputBoundryPath)
     print(f"Number of contours found: {len(contoursFinded)} num of white pixels: {len(white_pixels)}")
-    finalOutput = 'outputs/finalOutput.png'
+    finalOutput = f'outputs/{input_name}/finalOutput.png'
     
     image_path2 = image_path
     orginImage = Image.open(image_path2)
     draw_boundaries_on_original(image_path2, white_pixels, finalOutput)
-    create_black_image_with_white_pixels("outputs/black_image.png", width, height, white_pixels)
+    create_black_image_with_white_pixels(f"outputs/{input_name}/black_image.png", width, height, white_pixels)
     
     
     # image = Image.open("./mask_blueddd.png")
@@ -513,11 +518,15 @@ def gurpinar(image_path):
     # image_cv = cv2.drawContours(blank_image, countours, -1, (255, 0, 0), 3)
 
     # image_cv = Image.fromarray(image_cv)
-    # image_cv.save("outputs/Active Contour.png")
+    # image_cv.save(f"outputs/{input_name}/Active Contour.png")
+
+
+input_name = 1
 
 def run_tum_imagelar():
+    global input_name
     image_paths = [ 
-                    "input.jpg",
+                    "input1.jpg",
                     "input2.jpg",
                     "input3.jpg",
                     "input4.jpg",
@@ -529,8 +538,8 @@ def run_tum_imagelar():
                     "input10.jpg",
                     "input11.jpg",
                     "input12.jpg",
-                    "input14.jpg",
-                    "input15.jpg"
+                    "input13.jpg",
+                    "input14.jpg"
                     ]
     
     for image_path in image_paths:
@@ -538,10 +547,12 @@ def run_tum_imagelar():
         gurpinar("inputs/" + image_path)
         # print(f"Processing {image_path} is done.\n")
         # Wait for user input to continue
-        input("Press Enter to continue...")
+        # input("Press Enter to continue...")
+        input_name += 1
 
 
 if __name__ == "__main__":
     # run_tum_imagelar()
-    gurpinar("./inputs/input.jpg")
+    input_name = 1
+    gurpinar(f"./inputs/input{input_name}.jpg")
 
